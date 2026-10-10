@@ -48,6 +48,20 @@ class WebhookTests(unittest.TestCase):
             },
         )
 
+    def test_redacts_auth_and_cookie_headers(self):
+        with bridge.app.test_request_context(
+            "/webhook",
+            headers={
+                "X-Webhook-Token": "do-not-log",
+                "Cookie": "session=do-not-log",
+                "User-Agent": "test-client",
+            },
+        ):
+            safe_headers = bridge._safe_request_headers()
+        self.assertEqual(safe_headers["X-Webhook-Token"], "[REDACTED]")
+        self.assertEqual(safe_headers["Cookie"], "[REDACTED]")
+        self.assertEqual(safe_headers["User-Agent"], "test-client")
+
     def test_requires_shared_secret(self):
         response = self.client.post("/webhook", json={"report": "test"})
         self.assertEqual(response.status_code, 401)

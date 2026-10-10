@@ -26,6 +26,8 @@ SENSITIVE_KEY_PARTS = (
     "credential",
     "accesskey",
     "privatekey",
+    "cookie",
+    "apikey",
 )
 SENSITIVE_TEXT_PATTERN = re.compile(
     r"(?i)(authorization|access[_-]?key|secret|password|passwd|token)(\s*[:=]\s*)([^\s,;]+)"
@@ -82,6 +84,17 @@ def _redact_log_value(value: Any) -> Any:
     if isinstance(value, str):
         return SENSITIVE_TEXT_PATTERN.sub(r"\1\2[REDACTED]", value)
     return value
+
+
+def _safe_request_headers() -> dict[str, str]:
+    safe_headers = {}
+    for name, value in request.headers.items():
+        normalized_name = re.sub(r"[^a-z0-9]", "", name.lower())
+        if any(part in normalized_name for part in SENSITIVE_KEY_PARTS):
+            safe_headers[name] = "[REDACTED]"
+        else:
+            safe_headers[name] = value
+    return safe_headers
 
 
 def _log_webhook_payload() -> None:
@@ -157,17 +170,29 @@ def start_request_timer():
 def log_http_request(response):
     started_at = request.environ.get("starops_request_started_at")
     elapsed_ms = (time.perf_counter() - started_at) * 1000 if started_at else 0
+    expected_secret = os.getenv("WEBHOOK_SHARED_SECRET", "")
+    provided_secret = request.headers.get("X-Webhook-Token", "")
+    token_matches = bool(
+        expected_secret
+        and provided_secret
+        and hmac.compare_digest(provided_secret, expected_secret)
+    )
+    request_details = {
+        "method": request.method,
+        "path": request.path,
+        "status": response.status_code,
+        "client_ip": request.remote_addr or "unknown",
+        "elapsed_ms": round(elapsed_ms, 1),
+        "content_type": request.content_type,
+        "content_length": request.content_length,
+        "headers": _safe_request_headers(),
+        "webhook_token_present": bool(provided_secret),
+        "webhook_token_matches": token_matches,
+        "x_forwarded_for": request.headers.get("X-Forwarded-For"),
+    }
     logger.info(
-        "HTTP %s %s %s %s %.1fms content_type=%s content_length=%s user_agent=%s x_forwarded_for=%s",
-        request.method,
-        request.path,
-        response.status_code,
-        request.remote_addr or "unknown",
-        elapsed_ms,
-        request.content_type or "-",
-        request.content_length if request.content_length is not None else "-",
-        request.user_agent.string or "-",
-        request.headers.get("X-Forwarded-For", "-"),
+        "HTTP request: %s",
+        json.dumps(request_details, ensure_ascii=False, separators=(",", ":")),
     )
     return response
 
