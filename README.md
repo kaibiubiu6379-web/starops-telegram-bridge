@@ -19,6 +19,7 @@
 sudo useradd --system --home /data/app/starops-telegram-bridge --shell /usr/sbin/nologin starops-bridge
 sudo python3 -m venv /data/app/starops-telegram-bridge/.venv
 sudo /data/app/starops-telegram-bridge/.venv/bin/pip install -r /data/app/starops-telegram-bridge/requirements.txt
+sudo install -d -o starops-bridge -g starops-bridge -m 0750 /data/logs/starops-telegram-bridge
 sudo install -m 600 .env.example /etc/starops-telegram-bridge.env
 sudo chown -R starops-bridge:starops-bridge /data/app/starops-telegram-bridge
 sudo install -m 644 starops-telegram-bridge.service /etc/systemd/system/starops-telegram-bridge.service
@@ -28,6 +29,8 @@ sudo systemctl status starops-telegram-bridge --no-pager
 ```
 
 先编辑 `/etc/starops-telegram-bridge.env` 填入真实值，再启动服务。服务单元默认从 `/data/app/starops-telegram-bridge` 启动。Linux 防火墙/阿里云安全组需允许 TCP/8084 入站。健康检查：`GET /healthz`。Webhook：`POST /webhook`。
+
+应用日志以追加方式写入 `/data/logs/starops-telegram-bridge/app.log`。服务用户 `starops-bridge` 必须对日志目录有写权限。日志使用 `WatchedFileHandler`，支持外部轮转后重新打开文件；应用不会记录报告正文或密钥。Gunicorn/systemd 启动层面的日志仍可通过 `journalctl -u starops-telegram-bridge` 查看。
 
 ## StarOps 配置
 

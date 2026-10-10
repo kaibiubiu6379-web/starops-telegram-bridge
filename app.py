@@ -5,6 +5,7 @@ from __future__ import annotations
 import hmac
 import json
 import logging
+from logging.handlers import WatchedFileHandler
 import os
 from typing import Any
 
@@ -15,8 +16,17 @@ MAX_BODY_BYTES = 10 * 1024 * 1024
 TELEGRAM_TEXT_LIMIT = 3900
 TELEGRAM_TIMEOUT_SECONDS = 4
 
-logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("starops_telegram_bridge")
+logger.setLevel(os.getenv("LOG_LEVEL", "INFO").upper())
+logger.propagate = False
+
+log_path = os.getenv("LOG_FILE")
+if log_path:
+    log_handler = WatchedFileHandler(log_path, encoding="utf-8")
+else:
+    log_handler = logging.StreamHandler()
+log_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+logger.addHandler(log_handler)
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_BODY_BYTES
