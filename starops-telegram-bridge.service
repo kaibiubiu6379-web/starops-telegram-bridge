@@ -10,7 +10,7 @@ Group=starops-bridge
 WorkingDirectory=/data/app/starops-telegram-bridge
 EnvironmentFile=/etc/starops-telegram-bridge.env
 Environment=LOG_FILE=/data/logs/starops-telegram-bridge/app.log
-ExecStart=/data/app/starops-telegram-bridge/.venv/bin/gunicorn --workers 2 --bind 0.0.0.0:8084 --timeout 10 app:app
+ExecStart=/data/app/starops-telegram-bridge/.venv/bin/gunicorn --workers 2 --bind 0.0.0.0:8086 --timeout 10 app:app
 Restart=on-failure
 RestartSec=3
 NoNewPrivileges=true

@@ -28,7 +28,7 @@ sudo systemctl enable --now starops-telegram-bridge
 sudo systemctl status starops-telegram-bridge --no-pager
 ```
 
-先编辑 `/etc/starops-telegram-bridge.env` 填入真实值，再启动服务。服务单元默认从 `/data/app/starops-telegram-bridge` 启动。Linux 防火墙/阿里云安全组需允许 TCP/8084 入站。健康检查：`GET /healthz`。Webhook：`POST /webhook`。
+先编辑 `/etc/starops-telegram-bridge.env` 填入真实值，再启动服务。服务单元默认从 `/data/app/starops-telegram-bridge` 启动。Linux 防火墙/阿里云安全组需允许 TCP/8086 入站。健康检查：`GET /healthz`。Webhook：`POST /webhook`。
 
 应用日志以追加方式写入 `/data/logs/starops-telegram-bridge/app.log`。服务用户 `starops-bridge` 必须对日志目录有写权限。日志使用 `WatchedFileHandler`，支持外部轮转后重新打开文件；应用不会记录报告正文或密钥。Gunicorn/systemd 启动层面的日志仍可通过 `journalctl -u starops-telegram-bridge` 查看。
 
@@ -36,7 +36,7 @@ sudo systemctl status starops-telegram-bridge --no-pager
 
 在“通知管理 → 自定义 Webhook”中新建对象：
 
-- URL：`http://<主机公网地址>:8084/webhook`
+- URL：`http://<主机公网地址>:8086/webhook`
 - Method：`POST`
 - 数据格式：`JSON`（如 StarOps 的通知正文配置为表单，再选 `FORM`）
 - Header：`X-Webhook-Token`，值为 `WEBHOOK_SHARED_SECRET`
