@@ -7,6 +7,7 @@ import json
 import logging
 from logging.handlers import WatchedFileHandler
 import os
+import time
 from typing import Any
 
 import requests
@@ -95,6 +96,25 @@ def _send_to_telegram(report: str, extension: str) -> None:
 @app.get("/healthz")
 def healthz():
     return jsonify(status="ok", telegram_configured=_telegram_config() is not None)
+
+
+@app.before_request
+def start_request_timer():
+    request.environ["starops_request_started_at"] = time.perf_counter()
+
+
+@app.after_request
+def log_http_request(response):
+    started_at = request.environ.get("starops_request_started_at")
+    elapsed_ms = (time.perf_counter() - started_at) * 1000 if started_at else 0
+    logger.info(
+        "HTTP %s %s %s %.1fms",
+        request.method,
+        request.path,
+        response.status_code,
+        elapsed_ms,
+    )
+    return response
 
 
 @app.post("/webhook")
