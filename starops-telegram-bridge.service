@@ -1,0 +1,21 @@
+[Unit]
+Description=STAROps to Telegram webhook bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=starops-bridge
+Group=starops-bridge
+WorkingDirectory=/opt/starops-telegram-bridge
+EnvironmentFile=/etc/starops-telegram-bridge.env
+ExecStart=/opt/starops-telegram-bridge/.venv/bin/gunicorn --workers 2 --bind 0.0.0.0:8084 --timeout 10 app:app
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
