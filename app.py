@@ -7,6 +7,7 @@ import json
 import logging
 from logging.handlers import WatchedFileHandler
 import os
+import re
 import time
 from typing import Any
 
@@ -16,6 +17,19 @@ from flask import Flask, jsonify, request
 MAX_BODY_BYTES = 10 * 1024 * 1024
 TELEGRAM_TEXT_LIMIT = 3900
 TELEGRAM_TIMEOUT_SECONDS = 4
+SENSITIVE_KEY_PARTS = (
+    "token",
+    "secret",
+    "password",
+    "passwd",
+    "authorization",
+    "credential",
+    "accesskey",
+    "privatekey",
+)
+SENSITIVE_TEXT_PATTERN = re.compile(
+    r"(?i)(authorization|access[_-]?key|secret|password|passwd|token)(\s*[:=]\s*)([^\s,;]+)"
+)
 
 logger = logging.getLogger("starops_telegram_bridge")
 logger.setLevel(os.getenv("LOG_LEVEL", "INFO").upper())
@@ -51,6 +65,42 @@ def _read_report() -> tuple[str, str]:
         return json.dumps(payload, ensure_ascii=False, indent=2), "json"
 
     return raw.decode("utf-8", errors="replace"), "txt"
+
+
+def _redact_log_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        redacted = {}
+        for key, item in value.items():
+            normalized_key = re.sub(r"[^a-z0-9]", "", str(key).lower())
+            if any(part in normalized_key for part in SENSITIVE_KEY_PARTS):
+                redacted[key] = "[REDACTED]"
+            else:
+                redacted[key] = _redact_log_value(item)
+        return redacted
+    if isinstance(value, list):
+        return [_redact_log_value(item) for item in value]
+    if isinstance(value, str):
+        return SENSITIVE_TEXT_PATTERN.sub(r"\1\2[REDACTED]", value)
+    return value
+
+
+def _log_webhook_payload() -> None:
+    raw = request.get_data(cache=True)
+    if request.is_json:
+        try:
+            payload: Any = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            payload = raw.decode("utf-8", errors="replace")
+    elif request.form:
+        payload = request.form.to_dict(flat=False)
+    else:
+        payload = raw.decode("utf-8", errors="replace")
+
+    logger.info(
+        "Webhook payload from %s: %s",
+        request.remote_addr or "unknown",
+        json.dumps(_redact_log_value(payload), ensure_ascii=False, separators=(",", ":")),
+    )
 
 
 def _telegram_config() -> tuple[str, str] | None:
@@ -108,11 +158,16 @@ def log_http_request(response):
     started_at = request.environ.get("starops_request_started_at")
     elapsed_ms = (time.perf_counter() - started_at) * 1000 if started_at else 0
     logger.info(
-        "HTTP %s %s %s %.1fms",
+        "HTTP %s %s %s %s %.1fms content_type=%s content_length=%s user_agent=%s x_forwarded_for=%s",
         request.method,
         request.path,
         response.status_code,
+        request.remote_addr or "unknown",
         elapsed_ms,
+        request.content_type or "-",
+        request.content_length if request.content_length is not None else "-",
+        request.user_agent.string or "-",
+        request.headers.get("X-Forwarded-For", "-"),
     )
     return response
 
@@ -127,6 +182,7 @@ def webhook():
     if _telegram_config() is None:
         return jsonify(error="telegram_not_configured"), 503
 
+    _log_webhook_payload()
     report, extension = _read_report()
     try:
         _send_to_telegram(report, extension)

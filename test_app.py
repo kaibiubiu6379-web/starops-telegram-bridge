@@ -31,6 +31,23 @@ class WebhookTests(unittest.TestCase):
     def tearDown(self):
         self.env.stop()
 
+    def test_redacts_sensitive_fields_from_log_payload(self):
+        payload = {
+            "report": "normal detail",
+            "bot_token": "do-not-log",
+            "nested": {"clientSecret": "also-do-not-log"},
+            "note": "password=hunter2",
+        }
+        self.assertEqual(
+            bridge._redact_log_value(payload),
+            {
+                "report": "normal detail",
+                "bot_token": "[REDACTED]",
+                "nested": {"clientSecret": "[REDACTED]"},
+                "note": "password=[REDACTED]",
+            },
+        )
+
     def test_requires_shared_secret(self):
         response = self.client.post("/webhook", json={"report": "test"})
         self.assertEqual(response.status_code, 401)
