@@ -17,6 +17,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
+ReadWritePaths=/data/logs/starops-telegram-bridge
 
 [Install]
 WantedBy=multi-user.target
