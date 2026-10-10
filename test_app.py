@@ -67,6 +67,13 @@ class WebhookTests(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
 
     @patch.object(bridge.requests, "post", return_value=FakeResponse())
+    def test_allows_request_without_token_when_auth_disabled(self, post):
+        with patch.dict(os.environ, {"WEBHOOK_AUTH_ENABLED": "false"}):
+            response = self.client.post("/webhook", json={"report": "test"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(post.call_count, 1)
+
+    @patch.object(bridge.requests, "post", return_value=FakeResponse())
     def test_forwards_short_json_report(self, post):
         payload = {"report": "完整报告", "id": "event-1"}
         response = self.client.post(

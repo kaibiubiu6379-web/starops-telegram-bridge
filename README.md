@@ -8,7 +8,8 @@
 
 - `TELEGRAM_BOT_TOKEN`：专用 Telegram Bot Token。
 - `TELEGRAM_CHAT_ID`：接收报告的用户、群组或频道 ID；群组/频道需先将 Bot 加入并授予发消息权限。
-- `WEBHOOK_SHARED_SECRET`：至少 32 字节的随机值；StarOps 请求 Header 配置为 `X-Webhook-Token: <同一密钥>`。
+- `WEBHOOK_SHARED_SECRET`：至少 32 字节的随机值；鉴权启用时，StarOps Header 配置为 `X-Webhook-Token: <同一密钥>`。
+- `WEBHOOK_AUTH_ENABLED`：默认 `true`。只有在安全组/主机防火墙已严格限制 StarOps 来源 IP 时，才可设为 `false` 关闭 Header 鉴权。
 - `LOG_LEVEL`：可选，默认 `INFO`。
 
 ## 部署到 Linux 主机
@@ -39,8 +40,8 @@ sudo systemctl status starops-telegram-bridge --no-pager
 - URL：`http://<主机公网地址>:8086/webhook`
 - Method：`POST`
 - 数据格式：`JSON`（如 StarOps 的通知正文配置为表单，再选 `FORM`）
-- Header：`X-Webhook-Token`，值为 `WEBHOOK_SHARED_SECRET`
+- Header：鉴权启用时配置 `X-Webhook-Token`，值为 `WEBHOOK_SHARED_SECRET`；若已在服务端设置 `WEBHOOK_AUTH_ENABLED=false`，无需配置 Header。
 
 然后在对应 Mission 的设置中关联这个 Webhook 通知对象。StarOps 文档说明 Webhook 有 5 秒超时和 3 次重试；本服务限制 Telegram API 等待 4 秒。小于约 3900 字符的报告直接发消息，更长的完整正文作为 JSON/TXT 文件发送；单个入站请求上限 10 MiB。
 
-当前给出的地址使用明文 HTTP。报告可能含有资源标识、告警详情等信息；生产长期使用建议绑定域名并经 HTTPS 反向代理，同时在安全组限制来源并保留 Header 鉴权。
+当前给出的地址使用明文 HTTP。报告可能含有资源标识、告警详情等信息；生产长期使用建议绑定域名并经 HTTPS 反向代理。关闭 Header 鉴权后，必须通过安全组和主机防火墙限制来源 IP，避免公网任意来源伪造请求。

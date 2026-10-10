@@ -122,6 +122,15 @@ def _telegram_config() -> tuple[str, str] | None:
     return (token, chat_id) if token and chat_id else None
 
 
+def _webhook_auth_enabled() -> bool:
+    return os.getenv("WEBHOOK_AUTH_ENABLED", "true").strip().lower() not in {
+        "false",
+        "0",
+        "no",
+        "off",
+    }
+
+
 def _send_to_telegram(report: str, extension: str) -> None:
     config = _telegram_config()
     if config is None:
@@ -172,8 +181,10 @@ def log_http_request(response):
     elapsed_ms = (time.perf_counter() - started_at) * 1000 if started_at else 0
     expected_secret = os.getenv("WEBHOOK_SHARED_SECRET", "")
     provided_secret = request.headers.get("X-Webhook-Token", "")
+    auth_enabled = _webhook_auth_enabled()
     token_matches = bool(
-        expected_secret
+        auth_enabled
+        and expected_secret
         and provided_secret
         and hmac.compare_digest(provided_secret, expected_secret)
     )
@@ -186,8 +197,9 @@ def log_http_request(response):
         "content_type": request.content_type,
         "content_length": request.content_length,
         "headers": _safe_request_headers(),
+        "webhook_auth_enabled": auth_enabled,
         "webhook_token_present": bool(provided_secret),
-        "webhook_token_matches": token_matches,
+        "webhook_token_matches": token_matches if auth_enabled else None,
         "x_forwarded_for": request.headers.get("X-Forwarded-For"),
     }
     logger.info(
@@ -201,7 +213,9 @@ def log_http_request(response):
 def webhook():
     shared_secret = os.getenv("WEBHOOK_SHARED_SECRET", "")
     provided_secret = request.headers.get("X-Webhook-Token", "")
-    if not shared_secret or not hmac.compare_digest(provided_secret, shared_secret):
+    if _webhook_auth_enabled() and (
+        not shared_secret or not hmac.compare_digest(provided_secret, shared_secret)
+    ):
         return jsonify(error="unauthorized"), 401
 
     if _telegram_config() is None:
